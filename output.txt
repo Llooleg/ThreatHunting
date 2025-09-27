@@ -1,48 +1,4 @@
----
-title: "Первая практика"
-subtitle: "Образец отчета в Quarto"
-author: "helgilebed@gmail.com"
-format: 
-  md:
-    output-file: README.md
----
-
-## Цель работы
-
- Ознакомиться с языком программирования R.
-
-## Исходные данные
-
-1. Программное обеспечение Windows 11 Home
-2. Visual Studio
-3. Интерпретатор языка R 4.1
-
-     
-       
- 
-## План
-1. Установить интерпретатор R
-2. Установить Rstudio IDE
-3. Установить программный пакет swirl:
-через интерфейс Rstudio IDE
-или функцией R install.packages("swirl")
-4. Запустить задание с помощью swirl::swirl()
-5. Выбрать из меню курсов 1. R Programming: The
-basics of programming in R
-6. Запустить подкурсы и выполнить:
-базовые структурные блоки (Basic Building
-Blocks)
-рабочие пространства и файлы (Workspace and
-Files)
-последовательности чисел (Sequences of
-Numbers)
-векторы (Vectors)
-пропущенные значения (Missing Values)  
-
-## Шаги:   
-
-1. Выполнили модуль Basic Building Blocks
-  y
+> y
 [1] 9
 
 | Keep working like that and you'll get there!
@@ -354,8 +310,23 @@ Selection: No
 
 | Please choose a course, or type 0 to exit swirl.
 
+1: R Programming
+2: Take me to the swirl course repository!
 
-2. Выполнили модуль Workspace and Files
+Selection: 1
+
+| Please choose a lesson, or type 0 to return to course menu.
+
+ 1: Basic Building Blocks      2: Workspace and Files
+ 3: Sequences of Numbers       4: Vectors
+ 5: Missing Values             6: Subsetting Vectors
+ 7: Matrices and Data Frames   8: Logic
+ 9: Functions                 10: lapply and sapply
+11: vapply and tapply         12: Looking at Data
+13: Simulation                14: Dates and Times
+15: Base Graphics
+
+Selection: 2
 
   |                                                                      |   0%
 
@@ -719,9 +690,28 @@ Error in setwd() : argument "dir" is missing, with no default
 
 Selection: 2
 
+| All that hard work is paying off!
 
+| You've reached the end of this lesson! Returning to the main menu...
 
-3. Выполнили модуль Sequences of Numbers
+| Please choose a course, or type 0 to exit swirl.
+
+1: R Programming
+2: Take me to the swirl course repository!
+
+Selection: 1
+
+| Please choose a lesson, or type 0 to return to course menu.
+
+ 1: Basic Building Blocks      2: Workspace and Files
+ 3: Sequences of Numbers       4: Vectors
+ 5: Missing Values             6: Subsetting Vectors
+ 7: Matrices and Data Frames   8: Logic
+ 9: Functions                 10: lapply and sapply
+11: vapply and tapply         12: Looking at Data
+13: Simulation                14: Dates and Times
+15: Base Graphics
+
 Selection: 3
 
   |                                                                      |   0%
@@ -961,9 +951,52 @@ Selection: 1
 | You've reached the end of this lesson! Returning to the main menu...
 
 
+| You've reached the end of this lesson! Returning to the main menu...
 
-4. Выполнили модуль Vectors
+| Please choose a course, or type 0 to exit swirl.
 
+1: R Programming
+2: Take me to the swirl course repository!
+
+Selection:
+
+
+
+
+
+
+| You've reached the end of this lesson! Returning to the main menu...
+
+| Please choose a course, or type 0 to exit swirl.
+
+1: R Programming
+2: Take me to the swirl course repository!
+
+Selection:
+
+
+
+
+| You've reached the end of this lesson! Returning to the main menu...
+
+| Please choose a course, or type 0 to exit swirl.
+
+1: R Programming
+2: Take me to the swirl course repository!
+
+
+| You've reached the end of this lesson! Returning to the main menu...
+
+| Please choose a course, or type 0 to exit swirl.
+
+
+| You've reached the end of this lesson! Returning to the main menu...
+
+
+| You've reached the end of this lesson! Returning to the main menu...
+
+
+| Please choose a course, or type 0 to exit swirl.
 Selection: 4
 
   |                                                                      |   0%
@@ -1328,7 +1361,6 @@ Error: object 'm1' not found
   |======================================================================| 100%
 | Would you like to receive credit for completing this course on Coursera.org?
 
-5. Выполнили модуль Missing Values
 
 Selection: 5
 
@@ -1540,12 +1572,3 @@ Selection: 5
 2: Yes
 
 Selection: 1
-
-
-## Оценка результата
-
- В результате лабораторной работы мы ознакомились с языком программирования R.
-
-## Вывод
-
-Таким образом, мы научились основам языка программирования R
