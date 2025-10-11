@@ -43,7 +43,7 @@ Numbers)
 
 1. Выполнили модуль Basic Building Blocks
 
-```{r, eval=FALSE}
+
 
 
 
@@ -63,10 +63,11 @@ Numbers)
 | 'concatenate' or 'combine'. To create a vector containing the numbers 1.1, 9,
 | and 3.14, type c(1.1, 9, 3.14). Try it now and store the result in a variable
 | called z.
-
+```
+{r}
 > c(1.1, 9, 3.14)
 [1] 1.10 9.00 3.14
-
+```
 | Try again. Getting it right on the first try is boring anyway! Or, type
 | info() for more options.
 
@@ -1543,7 +1544,7 @@ Selection: 5
 2: Yes
 
 Selection: 1
-```
+
 
 ## Оценка результата
 
