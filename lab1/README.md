@@ -44,9 +44,13 @@ with the c() function, which stands for | ‘concatenate’ or ‘combine’. To
 create a vector containing the numbers 1.1, 9, | and 3.14, type c(1.1,
 9, 3.14). Try it now and store the result in a variable | called z.
 
-    {r}
-    > c(1.1, 9, 3.14)
+``` r
+c(1.1, 9, 3.14)
+```
+
     [1] 1.10 9.00 3.14
+
+\[1\] 1.10 9.00 3.14
 
 Try again. Getting it right on the first try is boring anyway! Or,
 type  
