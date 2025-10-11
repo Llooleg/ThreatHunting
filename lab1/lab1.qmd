@@ -1,7 +1,7 @@
 ---
 title: "Первая практика"
-subtitle: "Образец отчета в Quarto"
-author: "helgilebed@gmail.com"
+subtitle: "Отчет "
+author: "HelgiLO@yandex.ru"
 format: 
   md:
     output-file: README.md
@@ -42,8 +42,11 @@ Numbers)
 ## Шаги:   
 
 1. Выполнили модуль Basic Building Blocks
-  y
-[1] 9
+
+```{r, eval=FALSE}
+
+
+
 
 | Keep working like that and you'll get there!
 
@@ -1540,7 +1543,7 @@ Selection: 5
 2: Yes
 
 Selection: 1
-
+```
 
 ## Оценка результата
 
