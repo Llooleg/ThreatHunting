@@ -79,7 +79,6 @@ nrow()
 
 6. Сколько рейсов принял аэропорт John F Kennedy Intl в мае
 ```{r}
-glimpse(flights)
 arrivals_count <- flights %>%
   filter(origin == "JFK", month==5) %>%  
 tally()
