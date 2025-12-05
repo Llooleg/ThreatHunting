@@ -1,0 +1,24 @@
+
+> cat("=== DNS LOG ANALYSIS SUMMARY ===\n\n")
+=== DNS LOG ANALYSIS SUMMARY ===
+
+
+> cat("Total DNS records:", nrow(dns_data_clean), "\n")
+Total DNS records: 427935 
+
+> cat("Unique domains queried:", n_distinct(dns_data_clean$query), "\n")
+Unique domains queried: 5177 
+
+> cat("Unique source IPs:", n_distinct(dns_data_clean$source_ip), "\n")
+Unique source IPs: 253 
+
+> cat("Date range:", min(dns_data_clean$timestamp), "to", max(dns_data_clean$timestamp), "\n")
+Date range: 1331901006 to 1332017992 
+
+> cat("\nTop 3 most queried domains:\n")
+
+
+
+
+ 9 
+
