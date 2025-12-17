@@ -1,3 +1,38 @@
+---
+title: "Шестая практика"
+subtitle: "Отчет "
+author: "HelgiLO@yandex.ru"
+format: 
+  md:
+    output-file: README.md
+---
+
+## Цель работы
+
+
+1. Закрепить навыки исследования данных журнала Windows Active Directory
+2. Изучить структуру журнала системы Windows Active Directory
+3. Закрепить практические навыки использования языка программирования R для обработки данных
+4. Закрепить знания основных функций обработки данных экосистемы tidyverse языка R
+
+
+## Исходные данные
+
+1. Программное обеспечение Windows 11 Home
+2. Visual Studio
+3. Интерпретатор языка R 4.1
+
+     
+       
+ 
+## План
+Используя R и среду разработки RstudioIDE, выполнить задания
+
+## Шаги:   
+
+1. Импортируйте данные в R. Это можно выполнить с помощью jsonlite::stream_in(file()) . Датасет находится по адресу https://storage.yandexcloud.net/iamcth-data/dataset.tar.gz.
+ 
+```{r}
 library(jsonlite)
 library(tidyverse)
 library(xml2)
@@ -21,6 +56,11 @@ raw_data <- stream_in(json_file_connection)
 close(json_file_connection)
 
 
+```
+
+2. Привести датасеты в вид “аккуратных данных”, преобразовать типы столбцов в соответствии с типом данных
+
+```{r}
 is_datetime_char <- function(x) {
   if (is.character(x) | is.factor(x)) {
     x_char <- as.character(x)
@@ -84,7 +124,13 @@ if (length(logical_col_names) > 0) {
   }
 }
 
-glimpse(raw_data)
+```
+
+
+3.  Раскройте датафрейм избавившись от вложенных датафреймов. Для обнаружения таких можно использовать функцию dplyr::glimpse() , а для раскрытия вложенности – tidyr::unnest() . Обратите внимание, что при раскрытии теряются внешние названия колонок – это можно предотвратить если использовать параметр tidyr::unnest(..., names_sep = ) 
+
+```{r}
+
 
 list_cols_logical <- sapply(raw_data, is.list)
 list_col_names <- names(raw_data)[list_cols_logical]
@@ -113,6 +159,15 @@ if (length(remaining_list_cols) > 0) {
 }
 
 
+
+```
+
+
+4. Минимизируйте количество колонок в датафрейме – уберите колоки с
+единственным значением параметра
+
+```{r}
+
 is_constant_col <- function(col) {
   unique_vals <- unique(col)
   unique_vals_no_na <- unique_vals[!is.na(unique_vals)]
@@ -123,11 +178,21 @@ constant_cols_names <- names(unnested_data)[constant_cols_logical]
 minimized_data <- unnested_data %>%
   select(-all_of(constant_cols_names))
 glimpse(minimized_data)
+```
+
+
+5. Какое количество хостов представлено в данном датасете?
+
+```{r}
 
 host_col_name <- "winlog_event_data_SourceHostname"
 num_unique_hosts <- n_distinct(minimized_data[[host_col_name]])
 num_unique_hosts
 
+```
+
+6. Подготовьте датафрейм с расшифровкой Windows Event_ID, приведите типы данных к типу их значений.
+```{r}
 webpage_url <- "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/appendix-l--events-to-monitor"
 webpage <- read_html(webpage_url)
 event_df_raw <- html_table(webpage)[[1]]
@@ -141,6 +206,13 @@ event_df <- event_df_raw %>%
 
 
 glimpse(event_df)
+
+```
+
+
+7. Есть ли в логе события с высоким и средним уровнем значимости? Сколько их?
+
+```{r}
 
 bad_event<- minimized_data %>%
   select(event_code) %>%
@@ -166,3 +238,6 @@ medium_events_count_calc <- sum(has_medium)
 cat("Событий средней значимости: ",medium_events_count_calc, "\n")
 
 
+
+
+```
