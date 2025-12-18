@@ -61,6 +61,8 @@ sessionInfo()
 
 ![](images/1.png)
 
+Ссылка на дашбоард https://datalens.ru/9tag1ejh87fqt
+
 ## Оценка результата
 
 В рамках практческой работы были изучены возможности Yandex Datalens для
