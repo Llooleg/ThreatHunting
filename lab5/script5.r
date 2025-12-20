@@ -11,8 +11,6 @@ library(janitor)
 library("R.utils") 
 library("jsonlite") 
 library("igraph") 
-library("V8")
-#library(factoextra)
 library(tidyverse)
 
 filename <- "P2_wifi_data.csv"
@@ -76,32 +74,23 @@ wifi_station_data <- read_csv(filename, skip = skip_lines_station,
 
 
 
-names(wifi_ap_data) <- janitor::make_clean_names(names(wifi_ap_data))
-wifi_ap_data <- wifi_ap_data %>%
-  mutate(
-    first_time_seen = lubridate::ymd_hms(first_time_seen, tz = "UTC"),
-    last_time_seen = lubridate::ymd_hms(last_time_seen, tz = "UTC")
-  )
-wifi_ap_data <- wifi_ap_data %>%
-  mutate_if(is.character, ~trimws(.x))
-names(wifi_station_data) <- janitor::make_clean_names(names(wifi_station_data))
-wifi_station_data <- wifi_station_data %>%
-  mutate(
-    first_time_seen = lubridate::ymd_hms(first_time_seen, tz = "UTC"),
-    last_time_seen = lubridate::ymd_hms(last_time_seen, tz = "UTC")
-  )
-wifi_station_data <- wifi_station_data %>%
-  mutate_if(is.character, ~trimws(.x))
-cat("\n--- Типы столбцов после преобразований ---\n")
-glimpse(wifi_ap_data)
+process_wifi_df <- function(df) {
+  df %>%
+    janitor::clean_names() %>%
+    mutate(across(where(is.character), str_trim)) %>%
+    mutate(across(contains("time_seen"), lubridate::as_datetime, tz = "UTC")) 
+}
 
+wifi_ap_data      <- process_wifi_df(wifi_ap_data)
+wifi_station_data <- process_wifi_df(wifi_station_data)
 glimpse(wifi_station_data)
+glimpse(wifi_ap_data)
 
 
 unsafe_wifi <- wifi_ap_data %>%
   filter(privacy == "OPN")
 
-print(unsafe_wifi)
+unsafe_wifi
 
 
 get_manufacturer_by_mac <- function(mac_address, timeout = 10) {
@@ -111,24 +100,25 @@ get_manufacturer_by_mac <- function(mac_address, timeout = 10) {
       url,
       httr::timeout(timeout),
       httr::add_headers(
-        "User-Agent" = "Mozilla/5.0 (compatible; R script)"
+        "Mozilla/5.0 (Windows NT 11.0; Win64; x64"
       )
     )
     if (httr::status_code(response) != 200) {
-      return(NULL)
+      return(NA)
     }
     
     content <- httr::content(response, "text", encoding = "UTF-8")
     data <- jsonlite::fromJSON(content)
     if (length(data) == 0 || is.null(data$company) || data$company == "") {
-      return(NULL)
+      return(NA)
     }
     return(data$company[1])
     
   }, error = function(e) {
-    return(NULL)
+    return(NA)
   })
 }
+
 wifi_ap_data$manufacturer <- sapply(wifi_ap_data$bssid, function(mac) {
   result <- get_manufacturer_by_mac(mac)
   if (is.null(result)) {
@@ -140,10 +130,10 @@ wifi_ap_data$manufacturer <- sapply(wifi_ap_data$bssid, function(mac) {
 
 
 
-final_ap_tibble <- wifi_ap_data %>%
+final_ap <- wifi_ap_data %>%
   select(bssid, essid, manufacturer)
 
-print(head(final_ap_tibble, 10))
+print(head(final_ap, 10))
 
 
 wpa3_aps <- wifi_ap_data %>%
@@ -157,76 +147,36 @@ fastest_wifi <- wifi_ap_data %>%
 print(fastest_wifi)
 
 
-join_sessions <- function(ap_data_single_bssid, threshold_seconds = 3000) {
-  ap_data_single_bssid <- ap_data_single_bssid %>% 
-    filter(!is.na(first_time_seen) & !is.na(last_time_seen))
-  
-  if (nrow(ap_data_single_bssid) == 0) {
-    return(tibble(total_duration_seconds = numeric()))
-  }
-  
-  ap_data_sorted <- ap_data_single_bssid %>% arrange(first_time_seen)
-  first_times <- ap_data_sorted$first_time_seen
-  last_times <- ap_data_sorted$last_time_seen
-  
-  session_starts <- first_times[1]
-  session_ends <- last_times[1]
-  
-  for (i in 2:nrow(ap_data_sorted)) {
-    current_start <- first_times[i]
-    current_end <- last_times[i]
-    last_end <- session_ends[length(session_ends)] 
-    time_diff <- as.numeric(current_start - last_end, units = "secs")
-    
-    if (is.na(time_diff) || time_diff > threshold_seconds) {
-      session_starts <- c(session_starts, current_start)
-      session_ends <- c(session_ends, current_end)
-    } else {
-      session_ends[length(session_ends)] <- max(session_ends[length(session_ends)], current_end)
-    }
-  }
-  
-  durations <- as.numeric(session_ends - session_starts, units = "secs")
-  
-  result <- tibble(
-    total_duration_seconds = durations
-  )
-  return(result)
-}
-
-wifi_ap_sorted_by_duration <- wifi_ap_data %>%
-  filter(!is.na(first_time_seen) & !is.na(last_time_seen)) %>%
+clean_duration <- wifi_ap_data %>%
+  arrange(bssid, first_time_seen) %>%
   group_by(bssid) %>%
-  summarise(
-    sessions_data = list(join_sessions(cur_data())),
-    .groups = 'drop'
+  mutate(
+    gap = as.numeric(first_time_seen - lag(last_time_seen, default = first_time_seen[1]), units = "secs"),
+    new_session = if_else(gap > 3000, 1, 0),
+    session_id = cumsum(new_session)
   ) %>%
-  unnest(sessions_data) %>%
+  group_by(bssid, session_id) %>%
+  summarise(
+    start = min(first_time_seen),
+    end = max(last_time_seen),
+    .groups = "drop"
+  ) %>%
+  mutate(duration = as.numeric(end - start, units = "secs")) %>%
   group_by(bssid) %>%
-  summarise(
-    total_time_on_channel_seconds = sum(total_duration_seconds, na.rm = TRUE),
-    .groups = 'drop'
-  ) %>%
+  summarise(total_time_on_channel_seconds = sum(duration)) %>%
   arrange(desc(total_time_on_channel_seconds))
 
-print(wifi_ap_sorted_by_duration)
+clean_duration
 
-
-library(dplyr)
-library(readr)
-
-cat("\n=== ЗАДАНИЕ 11: Производители через OUI файл (как нормальные люди) ===\n")
 
 
 
 parse_oui_file <- function(file_path) {
-  cat("📖 Читаем OUI файл...\n")
+  cat("Читаем OUI файл...\n")
   
 
   lines <- readLines(file_path, warn = FALSE)
-  
   oui_pattern <- "^([0-9A-F]{2}-[0-9A-F]{2}-[0-9A-F]{2})\\s+\\(hex\\)\\s+(.+)$"
-  
   oui_data <- tibble(
     line = lines
   ) %>%
@@ -236,7 +186,6 @@ parse_oui_file <- function(file_path) {
       manufacturer = trimws(gsub(oui_pattern, "\\2", line))
     ) %>%
     select(mac_prefix, manufacturer) %>%
-    # Преобразуем формат XX-XX-XX в xx:xx:xx для совместимости
     mutate(mac_prefix = tolower(gsub("-", ":", mac_prefix)))
   
   cat(" Загружено производителей:", nrow(oui_data), "\n")
@@ -353,11 +302,6 @@ print(wifi_ap_data %>%
 print(head(ap_strong, 10))
 
 
-# ============================================================
-# Задание 13: Кластеризация запросов от устройств к точкам доступа
-# ============================================================
-
-
 station_ap_matrix <- wifi_station_data %>%
   filter(!is.na(station_mac) & !is.na(bssid) & bssid != "(not associated)") %>%
   group_by(station_mac, bssid) %>%
@@ -376,14 +320,12 @@ station_matrix <- station_ap_matrix %>%
 
 rownames(station_matrix) <- station_ids
 
-cat("\n=== Размерность матрицы для кластеризации ===\n")
 cat("Количество станций:", nrow(station_matrix), "\n")
 cat("Количество уникальных BSSID:", ncol(station_matrix), "\n")
 
 station_matrix_filtered <- station_matrix[rowSums(station_matrix) > 0, ]
 
-cat("\nПосле фильтрации:\n")
-cat("Количество станций:", nrow(station_matrix_filtered), "\n")
+cat("Кол-во станций:", nrow(station_matrix_filtered), "\n")
 
 if (nrow(station_matrix_filtered) >= 10) {
   max_k <- min(10, nrow(station_matrix_filtered) - 1)
@@ -391,7 +333,7 @@ if (nrow(station_matrix_filtered) >= 10) {
   silhouette_scores <- numeric(max_k - 1)
   
   for (k in 2:max_k) {
-    set.seed(123)
+    set.seed(69420)
     kmeans_result <- kmeans(station_matrix_filtered, centers = k, nstart = 25)
     
     dist_matrix <- dist(station_matrix_filtered)
@@ -401,7 +343,6 @@ if (nrow(station_matrix_filtered) >= 10) {
   
   optimal_k <- which.max(silhouette_scores) + 1
   
-  cat("\n=== Оценка оптимального количества кластеров ===\n")
   cat("Силуэтные коэффициенты для k от 2 до", max_k, ":\n")
   for (i in 1:length(silhouette_scores)) {
     cat("k =", i + 1, ": ", round(silhouette_scores[i], 4), "\n")
@@ -410,15 +351,14 @@ if (nrow(station_matrix_filtered) >= 10) {
   
 } else {
   optimal_k <- min(3, nrow(station_matrix_filtered) - 1)
-  cat("\n=== Недостаточно данных для полного анализа ===\n")
+  cat("\nМало данных\n")
   cat("Используем k =", optimal_k, "\n")
 }
 
-set.seed(123)
+set.seed(42069)
 final_clusters <- kmeans(station_matrix_filtered, centers = optimal_k, nstart = 25)
 
-cat("\n=== Результаты кластеризации ===\n")
-cat("Размеры кластеров:\n")
+cat("\n=== Результаты  ===\n")
 print(table(final_clusters$cluster))
 
 clustered_stations <- tibble(
@@ -429,7 +369,6 @@ clustered_stations <- tibble(
 wifi_station_clustered <- wifi_station_data %>%
   left_join(clustered_stations, by = "station_mac")
 
-cat("\n=== Примеры станций по кластерам ===\n")
 for (i in 1:optimal_k) {
   cat("\nКластер", i, ":\n")
   cluster_stations <- clustered_stations %>% filter(cluster == i)

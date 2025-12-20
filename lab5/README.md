@@ -194,9 +194,40 @@ library("igraph")
         union
 
 ``` r
-library("V8")
+library(tidyverse)
+```
 
+    Warning: package 'tidyverse' was built under R version 4.4.3
 
+    Warning: package 'ggplot2' was built under R version 4.4.3
+
+    Warning: package 'tibble' was built under R version 4.4.3
+
+    Warning: package 'forcats' was built under R version 4.4.3
+
+    Warning: package 'lubridate' was built under R version 4.4.3
+
+    ── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
+    ✔ forcats   1.0.1     ✔ purrr     1.0.2
+    ✔ ggplot2   4.0.1     ✔ tibble    3.3.0
+    ✔ lubridate 1.9.4     
+
+    ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+    ✖ lubridate::%--%()       masks igraph::%--%()
+    ✖ tibble::as_data_frame() masks igraph::as_data_frame(), dplyr::as_data_frame()
+    ✖ purrr::compose()        masks igraph::compose()
+    ✖ dplyr::count()          masks mclust::count()
+    ✖ igraph::crossing()      masks tidyr::crossing()
+    ✖ R.utils::extract()      masks tidyr::extract()
+    ✖ dplyr::filter()         masks stats::filter()
+    ✖ purrr::flatten()        masks jsonlite::flatten()
+    ✖ dplyr::lag()            masks stats::lag()
+    ✖ purrr::map()            masks mclust::map()
+    ✖ purrr::simplify()       masks igraph::simplify()
+    ✖ jsonlite::validate()    masks R.utils::validate()
+    ℹ Use the conflicted package (<http://conflicted.r-lib.org/>) to force all conflicts to become errors
+
+``` r
 filename <- "P2_wifi_data.csv"
 url <- "https://storage.yandexcloud.net/dataset.ctfsec/P2_wifi_data.csv"
 if (!file.exists(filename)) {
@@ -262,26 +293,68 @@ wifi_station_data <- read_csv(filename, skip = skip_lines_station,
       dat <- vroom(...)
       problems(dat)
 
-Ответ: 5 2. Приведение даннных к виду “аккуратных”
+1.  Приведение даннных к виду “аккуратных”
 
 ``` r
-names(wifi_ap_data) <- janitor::make_clean_names(names(wifi_ap_data))
-wifi_ap_data <- wifi_ap_data %>%
-  mutate(
-    first_time_seen = lubridate::ymd_hms(first_time_seen, tz = "UTC"),
-    last_time_seen = lubridate::ymd_hms(last_time_seen, tz = "UTC")
-  )
-wifi_ap_data <- wifi_ap_data %>%
-  mutate_if(is.character, ~trimws(.x))
-names(wifi_station_data) <- janitor::make_clean_names(names(wifi_station_data))
-wifi_station_data <- wifi_station_data %>%
-  mutate(
-    first_time_seen = lubridate::ymd_hms(first_time_seen, tz = "UTC"),
-    last_time_seen = lubridate::ymd_hms(last_time_seen, tz = "UTC")
-  )
-wifi_station_data <- wifi_station_data %>%
-  mutate_if(is.character, ~trimws(.x))
+process_wifi_df <- function(df) {
+  df %>%
+    janitor::clean_names() %>%
+    mutate(across(where(is.character), str_trim)) %>%
+    mutate(across(contains("time_seen"), lubridate::as_datetime, tz = "UTC")) 
+}
+
+wifi_ap_data      <- process_wifi_df(wifi_ap_data)
 ```
+
+    Warning: There was 1 warning in `mutate()`.
+    ℹ In argument: `across(contains("time_seen"), lubridate::as_datetime, tz =
+      "UTC")`.
+    Caused by warning:
+    ! The `...` argument of `across()` is deprecated as of dplyr 1.1.0.
+    Supply arguments directly to `.fns` through an anonymous function instead.
+
+      # Previously
+      across(a:b, mean, na.rm = TRUE)
+
+      # Now
+      across(a:b, \(x) mean(x, na.rm = TRUE))
+
+``` r
+wifi_station_data <- process_wifi_df(wifi_station_data)
+glimpse(wifi_station_data)
+```
+
+    Rows: 12,081
+    Columns: 7
+    $ station_mac     <chr> "CA:66:3B:8F:56:DD", "96:35:2D:3D:85:E6", "5C:3A:45:9E…
+    $ first_time_seen <dttm> 2023-07-28 09:13:03, 2023-07-28 09:13:03, 2023-07-28 …
+    $ last_time_seen  <dttm> 2023-07-28 10:59:44, 2023-07-28 09:13:03, 2023-07-28 …
+    $ power           <dbl> -33, -65, -39, -61, -53, -43, -31, -71, -74, -65, -45,…
+    $ number_packets  <dbl> 858, 4, 432, 958, 1, 344, 163, 3, 115, 437, 265, 77, 7…
+    $ bssid           <chr> "BE:F1:71:D5:17:8B", "(not associated)", "BE:F1:71:D6:…
+    $ probed_essi_ds  <chr> "C322U13 3965", "IT2 Wireless", "C322U21 0566", "C322U…
+
+``` r
+glimpse(wifi_ap_data)
+```
+
+    Rows: 167
+    Columns: 15
+    $ bssid           <chr> "BE:F1:71:D5:17:8B", "6E:C7:EC:16:DA:1A", "9A:75:A8:B9…
+    $ first_time_seen <dttm> 2023-07-28 09:13:03, 2023-07-28 09:13:03, 2023-07-28 …
+    $ last_time_seen  <dttm> 2023-07-28 11:50:50, 2023-07-28 11:55:12, 2023-07-28 …
+    $ channel         <dbl> 1, 1, 1, 7, 6, 6, 11, 11, 11, 1, 6, 14, 11, 11, 6, 6, …
+    $ speed           <dbl> 195, 130, 360, 360, 130, 130, 195, 130, 130, 195, 180,…
+    $ privacy         <chr> "WPA2", "WPA2", "WPA2", "WPA2", "WPA2", "OPN", "WPA2",…
+    $ cipher          <chr> "CCMP", "CCMP", "CCMP", "CCMP", "CCMP", NA, "CCMP", "C…
+    $ authentication  <chr> "PSK", "PSK", "PSK", "PSK", "PSK", NA, "PSK", "PSK", "…
+    $ power           <dbl> -30, -30, -68, -37, -57, -63, -27, -38, -38, -66, -42,…
+    $ number_beacons  <dbl> 846, 750, 694, 510, 647, 251, 1647, 1251, 704, 617, 13…
+    $ number_iv       <dbl> 504, 116, 26, 21, 6, 3430, 80, 11, 0, 0, 86, 0, 0, 0, …
+    $ lan_ip          <chr> "0.  0.  0.  0", "0.  0.  0.  0", "0.  0.  0.  0", "0.…
+    $ id_length       <dbl> 12, 4, 2, 14, 25, 13, 12, 13, 24, 12, 10, 0, 24, 24, 1…
+    $ essid           <chr> "C322U13 3965", "Cnet", "KC", "POCO X5 Pro 5G", NA, "M…
+    $ key             <chr> NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA…
 
 1.  Просмотр
 
@@ -324,24 +397,25 @@ get_manufacturer_by_mac <- function(mac_address, timeout = 10) {
       url,
       httr::timeout(timeout),
       httr::add_headers(
-        "User-Agent" = "Mozilla/5.0 (compatible; R script)"
+        "Mozilla/5.0 (Windows NT 11.0; Win64; x64"
       )
     )
     if (httr::status_code(response) != 200) {
-      return(NULL)
+      return(NA)
     }
     
     content <- httr::content(response, "text", encoding = "UTF-8")
     data <- jsonlite::fromJSON(content)
     if (length(data) == 0 || is.null(data$company) || data$company == "") {
-      return(NULL)
+      return(NA)
     }
     return(data$company[1])
     
   }, error = function(e) {
-    return(NULL)
+    return(NA)
   })
 }
+
 wifi_ap_data$manufacturer <- sapply(wifi_ap_data$bssid, function(mac) {
   result <- get_manufacturer_by_mac(mac)
   if (is.null(result)) {
@@ -353,10 +427,10 @@ wifi_ap_data$manufacturer <- sapply(wifi_ap_data$bssid, function(mac) {
 
 
 
-final_ap_tibble <- wifi_ap_data %>%
+final_ap <- wifi_ap_data %>%
   select(bssid, essid, manufacturer)
 
-print(head(final_ap_tibble, 10))
+print(head(final_ap, 10))
 ```
 
     # A tibble: 10 × 3
@@ -399,75 +473,41 @@ print(wpa3_aps %>% select (bssid,privacy,essid, cipher ))
     они находились на связи, по убыванию
 
 ``` r
-join_sessions <- function(ap_data_single_bssid, threshold_seconds = 3000) {
-  ap_data_single_bssid <- ap_data_single_bssid %>% filter(!is.na(first_time_seen) & !is.na(last_time_seen))
-  if (nrow(ap_data_single_bssid) == 0) return(tibble(bssid = character(), total_duration_seconds = numeric()))
-  ap_data_sorted <- ap_data_single_bssid %>% arrange(first_time_seen)
-  first_times <- ap_data_sorted$first_time_seen
-  last_times <- ap_data_sorted$last_time_seen
-  session_starts <- first_times[1]
-  session_ends <- last_times[1]
-  for (i in 2:nrow(ap_data_sorted)) {
-    current_start <- first_times[i]
-    current_end <- last_times[i]
-    last_end <- session_ends[length(session_ends)] 
-    time_diff <- as.numeric(current_start - last_end, units = "secs")
-    if (is.na(time_diff) || time_diff > threshold_seconds) {
-      session_starts <- c(session_starts, current_start)
-      session_ends <- c(session_ends, current_end)
-    } else {
-      session_ends[length(session_ends)] <- max(session_ends[length(session_ends)], current_end)
-    }
-  }
-  durations <- as.numeric(session_ends - session_starts, units = "secs")
-  result <- tibble(
-    bssid = rep(ap_data_sorted$bssid[1], length(durations)), 
-    total_duration_seconds = durations
-  )
-  return(result)
-}
-wifi_ap_sorted_by_duration <- wifi_ap_data %>%
-  filter(!is.na(first_time_seen) & !is.na(last_time_seen)) %>%
+clean_duration <- wifi_ap_data %>%
+  arrange(bssid, first_time_seen) %>%
   group_by(bssid) %>%
-  summarise(
-    sessions_data = list(join_sessions(cur_data())),
-    .groups = 'drop'
+  mutate(
+    gap = as.numeric(first_time_seen - lag(last_time_seen, default = first_time_seen[1]), units = "secs"),
+    new_session = if_else(gap > 3000, 1, 0),
+    session_id = cumsum(new_session)
   ) %>%
-  unnest(sessions_data) %>%
+  group_by(bssid, session_id) %>%
+  summarise(
+    start = min(first_time_seen),
+    end = max(last_time_seen),
+    .groups = "drop"
+  ) %>%
+  mutate(duration = as.numeric(end - start, units = "secs")) %>%
   group_by(bssid) %>%
-  summarise(
-    total_time_on_channel_seconds = sum(total_duration_seconds, na.rm = TRUE),
-    .groups = 'drop'
-  ) %>%
+  summarise(total_time_on_channel_seconds = sum(duration)) %>%
   arrange(desc(total_time_on_channel_seconds))
-```
 
-    Warning: There were 168 warnings in `summarise()`.
-    The first warning was:
-    ℹ In argument: `sessions_data = list(join_sessions(cur_data()))`.
-    ℹ In group 1: `bssid = "00:00:00:00:00:00"`.
-    Caused by warning:
-    ! `cur_data()` was deprecated in dplyr 1.1.0.
-    ℹ Please use `pick()` instead.
-    ℹ Run `dplyr::last_dplyr_warnings()` to see the 167 remaining warnings.
-
-``` r
-  print(wifi_ap_sorted_by_duration)
+clean_duration
 ```
 
     # A tibble: 167 × 2
        bssid             total_time_on_channel_seconds
        <chr>                                     <dbl>
-     1 00:25:00:FF:94:73                         19590
-     2 E8:28:C1:DD:04:52                         19552
-     3 E8:28:C1:DC:B2:52                         19510
-     4 08:3A:2F:56:35:FE                         19492
-     5 6E:C7:EC:16:DA:1A                         19458
-     6 E8:28:C1:DC:B2:50                         19452
-     7 48:5B:39:F9:7A:48                         19450
-     8 E8:28:C1:DC:B2:51                         19450
-     9 E8:28:C1:DC:FF:F2                         19448
-    10 8E:55:4A:85:5B:01                         19446
+     1 00:25:00:FF:94:73                          9795
+     2 E8:28:C1:DD:04:52                          9776
+     3 E8:28:C1:DC:B2:52                          9755
+     4 08:3A:2F:56:35:FE                          9746
+     5 6E:C7:EC:16:DA:1A                          9729
+     6 E8:28:C1:DC:B2:50                          9726
+     7 48:5B:39:F9:7A:48                          9725
+     8 E8:28:C1:DC:B2:51                          9725
+     9 E8:28:C1:DC:FF:F2                          9724
+    10 8E:55:4A:85:5B:01                          9723
     # ℹ 157 more rows
 
 1.  Обнаружить топ-10 самых быстрых точек доступа
@@ -773,7 +813,7 @@ if (nrow(station_matrix_filtered) >= 10) {
   
   optimal_k <- which.max(silhouette_scores) + 1
   
-  cat("\n=== Оценка оптимального количества кластеров ===\n")
+  
   cat("Силуэтные коэффициенты для k от 2 до", max_k, ":\n")
   for (i in 1:length(silhouette_scores)) {
     cat("k =", i + 1, ": ", round(silhouette_scores[i], 4), "\n")
@@ -782,13 +822,11 @@ if (nrow(station_matrix_filtered) >= 10) {
   
 } else {
   optimal_k <- min(3, nrow(station_matrix_filtered) - 1)
-  cat("\n=== Недостаточно данных для полного анализа ===\n")
+  cat("\n=== Слишком мало данных ===\n")
   cat("Используем k =", optimal_k, "\n")
 }
 ```
 
-
-    === Оценка оптимального количества кластеров ===
     Силуэтные коэффициенты для k от 2 до 10 :
     k = 2 :  0.9141 
     k = 3 :  0.8362 
@@ -1006,13 +1044,6 @@ cat("Ковариация:", round(most_stable_cluster$cv_power, 4), "\n")
     Ковариация: 0.3207 
 
 ``` r
-cat("\n=== Детальное распределение мощности по кластерам ===\n")
-```
-
-
-    === Детальное распределение мощности по кластерам ===
-
-``` r
 for (i in 1:optimal_k) {
   cluster_data <- wifi_station_clustered %>% 
     filter(cluster == i & !is.na(power))
@@ -1073,13 +1104,6 @@ print(temporal_stability)
         <int>                <dbl>              <int>
     1       1                 75.0                  1
     2       2                 41.5                185
-
-``` r
-cat("\n=== Выводы ===\n")
-```
-
-
-    === Выводы ===
 
 ``` r
 cat("1. Кластеризация разделила", nrow(station_matrix_filtered), "станций на", optimal_k, "кластера\n")
