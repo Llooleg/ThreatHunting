@@ -569,7 +569,6 @@ cat("Средняя мощность сигнала:", round(most_stable_cluster
 cat("Размах (range):", round(most_stable_cluster$range_power, 2), "dBm\n")
 cat("Ковариация:", round(most_stable_cluster$cv_power, 4), "\n")
 
-cat("\n=== Детальное распределение мощности по кластерам ===\n")
 for (i in 1:optimal_k) {
   cluster_data <- wifi_station_clustered %>% 
     filter(cluster == i & !is.na(power))
@@ -599,7 +598,6 @@ temporal_stability <- wifi_station_clustered %>%
 cat("\n=== Временная характеристика кластеров ===\n")
 print(temporal_stability)
 
-cat("\n=== Выводы ===\n")
 cat("1. Кластеризация разделила", nrow(station_matrix_filtered), "станций на", optimal_k, "кластера\n")
 cat("2. Наиболее стабильный сигнал в кластере №", most_stable_cluster$cluster, "\n")
 cat("   - Стандартное отклонение =", round(most_stable_cluster$sd_power, 2), "dBm\n")

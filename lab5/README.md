@@ -865,13 +865,6 @@ cluster_characteristics <- wifi_station_clustered %>%
 
 
 
-cat("\n=== Характеристики кластеров ===\n")
-```
-
-
-    === Характеристики кластеров ===
-
-``` r
 cluster_characteristics
 ```
 
