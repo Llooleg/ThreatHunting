@@ -410,7 +410,6 @@ geo_results_df <- tibble(
   city = character(),
   isp = character()
 )
-#Запросы к API
 unique_ips_to_check <- unique(relevant_dns$destination_ip)
 for (ip in unique_ips_to_check) {
   geo_info_row <- get_geo_info(ip)
@@ -426,7 +425,6 @@ domain_geo_info_final_sorted <- domain_geo_info_final %>%
   arrange(domain_order) %>%
   select(-domain_order)
 
-# Вывод результата, группируя по домену
 print(domain_geo_info_final_sorted)
 ```
 

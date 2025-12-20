@@ -135,6 +135,7 @@ summary(time_intervals)
 ```
 
 10. Часто вредоносное программное обеспечение использует DNS канал в качестве канала управления, периодически отправляя запросы на подконтрольный злоумышленникам DNS сервер. По периодическим запросам на один и тот же домен можно выявить скрытый DNS канал. Есть ли  такие IP адреса в исследуемом датасете?
+
 ```{r}
 periodic_analysis <- dns_data_clean %>%
   group_by(source_ip, query) %>%
@@ -242,7 +243,6 @@ geo_results_df <- tibble(
   city = character(),
   isp = character()
 )
-#Запросы к API
 unique_ips_to_check <- unique(relevant_dns$destination_ip)
 for (ip in unique_ips_to_check) {
   geo_info_row <- get_geo_info(ip)
@@ -258,7 +258,6 @@ domain_geo_info_final_sorted <- domain_geo_info_final %>%
   arrange(domain_order) %>%
   select(-domain_order)
 
-# Вывод результата, группируя по домену
 print(domain_geo_info_final_sorted)
 
 ```

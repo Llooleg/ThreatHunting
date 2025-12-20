@@ -170,7 +170,6 @@ geo_results_df <- tibble(
   city = character(),
   isp = character()
 )
-#Запросы к API
 unique_ips_to_check <- unique(relevant_dns$destination_ip)
 for (ip in unique_ips_to_check) {
   geo_info_row <- get_geo_info(ip)
@@ -186,7 +185,6 @@ domain_geo_info_final_sorted <- domain_geo_info_final %>%
   arrange(domain_order) %>%
   select(-domain_order)
 
-# Вывод результата, группируя по домену
 print(domain_geo_info_final_sorted)
 
 library(ggplot2)
@@ -196,7 +194,6 @@ library(gridExtra)
 library(lubridate)
 library(tidyr)
 
-# Установи theme для всех графиков (чтобы не выглядело как из Excel 2003)
 theme_set(theme_minimal(base_size = 12))
 
 # ============================================================================
@@ -283,9 +280,7 @@ p3 <- ggplot(dns_timeline, aes(x = time_rounded, y = n, color = query)) +
 print(p3)
 ggsave("03_domain_timeline.png", p3, width = 14, height = 6, dpi = 300)
 
-# ============================================================================
-# 4. ПОДОЗРИТЕЛЬНАЯ АКТИВНОСТЬ - Scatter Plot
-# ============================================================================
+# 
 p4 <- ggplot(periodic_analysis, aes(x = mean_interval, y = cv_interval)) +
   geom_point(aes(size = request_count, color = regularity_score), alpha = 0.6) +
   scale_color_viridis(
@@ -310,9 +305,6 @@ p4 <- ggplot(periodic_analysis, aes(x = mean_interval, y = cv_interval)) +
 print(p4)
 ggsave("04_suspicious_activity.png", p4, width = 12, height = 8, dpi = 300)
 
-# ============================================================================
-# 5. TOP SOURCE IPs - Bar Chart
-# ============================================================================
 top_sources <- dns_data_clean %>%
   group_by(source_ip) %>%
   count(sort = TRUE) %>%
@@ -337,10 +329,7 @@ p5 <- ggplot(top_sources, aes(x = reorder(source_ip, n), y = n)) +
 print(p5)
 ggsave("05_top_source_ips.png", p5, width = 10, height = 6, dpi = 300)
 
-# ============================================================================
-# 6. ГЕОГРАФИЧЕСКОЕ РАСПРЕДЕЛЕНИЕ - Bar Chart по странам
-# ============================================================================
-if(exists("domain_geo_info_final_sorted")) {
+
   geo_summary <- domain_geo_info_final_sorted %>%
     filter(!is.na(country), country != "Частный IP") %>%
     count(country, sort = TRUE) %>%
