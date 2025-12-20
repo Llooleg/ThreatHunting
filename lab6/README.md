@@ -607,13 +607,6 @@ if (length(host_col_candidates) > 0) {
     типы данных к типу их значений.
 
 ``` r
-cat("\nЗагрузка справочника критичности событий Windows...\n")
-```
-
-
-    Загрузка справочника критичности событий Windows...
-
-``` r
 webpage_url <- "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/appendix-l--events-to-monitor"
 webpage <- read_html(webpage_url)
 event_df_raw <- html_table(webpage)[[1]]
@@ -648,12 +641,10 @@ if (length(event_col_candidates) > 0) {
   event_col_name <- event_col_candidates[1]
   cat("Используем колонку с кодами событий:", event_col_name, "\n")
   
-  # Убеждаемся что numeric
   if (!is.numeric(minimized_data[[event_col_name]])) {
     minimized_data[[event_col_name]] <- as.numeric(minimized_data[[event_col_name]])
   }
   
-  # Подсчёт с агрегацией
   event_summary <- minimized_data %>%
     count(.data[[event_col_name]], name = "count") %>%
     rename(event_code = 1) %>%
