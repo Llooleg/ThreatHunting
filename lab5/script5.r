@@ -243,9 +243,7 @@ parse_oui_file <- function(file_path) {
   return(oui_data)
 }
 
-# Функция поиска производителя по MAC
 get_manufacturer_from_oui <- function(mac_address, oui_lookup) {
-  # Берём первые 3 октета (XX:XX:XX)
   mac_prefix <- tolower(substr(gsub("[^0-9A-Fa-f:]", "", mac_address), 1, 8))
   
   result <- oui_lookup %>%
@@ -267,8 +265,6 @@ if (file.exists(oui_file)) {
 } else {
   
   
-  # ВАРИАНТ 2: Скачиваем автоматически
-  cat(" Пытаемся скачать автоматически...\n")
   download.file(
     "https://standards-oui.ieee.org/oui/oui.txt",
     destfile = oui_file,
@@ -291,10 +287,10 @@ station_manufacturers <- unique_stations %>%
     })
   )
 
-cat("\n=== Результаты ===\n")
+
 cat("Успешно определено:", sum(!is.na(station_manufacturers$manufacturer)), 
     "из", nrow(station_manufacturers), "\n")
-cat("Время выполнения: ~5 секунд (а не 3 часа)\n")
+
 
 
 wifi_station_data_with_manufacturer <- wifi_station_data %>%
@@ -451,17 +447,11 @@ cluster_characteristics <- wifi_station_clustered %>%
     .groups = 'drop'
   )
 
-cat("\n=== Характеристики кластеров ===\n")
 print(cluster_characteristics)
 
 
-# ============================================================
-# Задание 14: Оценка стабильности уровня сигнала внутри кластеров
-# ============================================================
 
-cat("\n\n=== ЗАДАНИЕ 14: Оценка стабильности сигнала ===\n")
 
-cat("\n=== Проверка данных ===\n")
 power_check <- wifi_station_clustered %>%
   filter(!is.na(cluster) & !is.na(power)) %>%
   group_by(cluster, station_mac) %>%
@@ -493,8 +483,6 @@ signal_stability_between_stations <- wifi_station_clustered %>%
   ) %>%
   arrange(sd_power)
 
-cat("\n=== Стабильность сигнала между станциями в кластерах ===\n")
-cat("(Меньшее SD = более однородные уровни сигнала в кластере)\n\n")
 print(signal_stability_between_stations)
 
 station_avg_power <- wifi_station_clustered %>%
@@ -519,8 +507,6 @@ cluster_stability_by_avg <- station_avg_power %>%
   ) %>%
   arrange(sd_of_avg_power)
 
-cat("\n=== Стабильность средних уровней сигнала станций ===\n")
-cat("(Анализ средних power каждой станции внутри кластера)\n\n")
 print(cluster_stability_by_avg)
 
 most_stable_cluster <- signal_stability_between_stations %>%
@@ -528,10 +514,10 @@ most_stable_cluster <- signal_stability_between_stations %>%
   slice(1)
 
 cat("\n=== Наиболее стабильный кластер ===\n")
-cat("Кластер номер:", most_stable_cluster$cluster, "\n")
+cat("Номер кластера:", most_stable_cluster$cluster, "\n")
 cat("Стандартное отклонение:", round(most_stable_cluster$sd_power, 2), "dBm\n")
 cat("Средняя мощность сигнала:", round(most_stable_cluster$mean_power, 2), "dBm\n")
-cat("Размах (range):", round(most_stable_cluster$range_power, 2), "dBm\n")
+cat("Амплитуда):", round(most_stable_cluster$range_power, 2), "dBm\n")
 cat("Коэффициент вариации:", round(most_stable_cluster$cv_power, 4), "\n")
 cat("IQR:", round(most_stable_cluster$iqr_power, 2), "dBm\n")
 
@@ -567,7 +553,6 @@ temporal_stability <- wifi_station_clustered %>%
 cat("\n=== Временная характеристика кластеров ===\n")
 print(temporal_stability)
 
-cat("\n=== Выводы ===\n")
 cat("1. Кластеризация разделила", nrow(station_matrix_filtered), "станций на", optimal_k, "кластера\n")
 cat("2. Наиболее стабильный сигнал в кластере №", most_stable_cluster$cluster, "\n")
 cat("   - SD =", round(most_stable_cluster$sd_power, 2), "dBm\n")

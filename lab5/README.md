@@ -286,13 +286,6 @@ wifi_station_data <- wifi_station_data %>%
 1.  Просмотр
 
 ``` r
-cat("\n--- Типы столбцов после преобразований ---\n")
-```
-
-
-    --- Типы столбцов после преобразований ---
-
-``` r
 glimpse(wifi_ap_data)
 ```
 
@@ -387,7 +380,7 @@ print(head(final_ap_tibble, 10))
 ``` r
 wpa3_aps <- wifi_ap_data %>%
   filter(grepl("WPA3", authentication) | grepl("WPA3", privacy))
-print(wpa3_aps %>% select (bssid,privacy,essid,, cipher, ))
+print(wpa3_aps %>% select (bssid,privacy,essid, cipher ))
 ```
 
     # A tibble: 8 × 4
@@ -480,11 +473,11 @@ wifi_ap_sorted_by_duration <- wifi_ap_data %>%
 1.  Обнаружить топ-10 самых быстрых точек доступа
 
 ``` r
-top_10_fastest_points <- wifi_ap_data %>%
+top_fastest_points <- wifi_ap_data %>%
   filter(!is.na(speed)) %>%
   arrange(desc(speed)) %>%
   slice_head(n = 10)
-print(select(top_10_fastest_points, speed, bssid, essid))
+print(select(top_fastest_points, speed, bssid, essid))
 ```
 
     # A tibble: 10 × 3
@@ -536,7 +529,7 @@ print(wifi_ap_data %>%
 
 ``` r
 parse_oui_file <- function(file_path) {
-  cat("📖 Читаем OUI файл...\n")
+  cat(" Читаем OUI файл...\n")
   
 
   lines <- readLines(file_path, warn = FALSE)
@@ -595,7 +588,7 @@ if (file.exists(oui_file)) {
 
 
     Используем локальный OUI файл
-    📖 Читаем OUI файл...
+     Читаем OUI файл...
      Загружено производителей: 38548 
 
 ``` r
@@ -616,24 +609,12 @@ station_manufacturers <- unique_stations %>%
     })
   )
 
-cat("\n=== Результаты ===\n")
-```
 
-
-    === Результаты ===
-
-``` r
 cat("Успешно определено:", sum(!is.na(station_manufacturers$manufacturer)), 
     "из", nrow(station_manufacturers), "\n")
 ```
 
     Успешно определено: 214 из 12081 
-
-``` r
-cat("Время выполнения: ~5 секунд (а не 3 часа)\n")
-```
-
-    Время выполнения: ~5 секунд (а не 3 часа)
 
 ``` r
 wifi_station_data_with_manufacturer <- wifi_station_data %>%
@@ -649,13 +630,6 @@ final_station_tibble <- wifi_station_data_with_manufacturer %>%
   ) %>%
   arrange(desc(total_packets))
 
-cat("\n=== Топ-20 клиентских устройств ===\n")
-```
-
-
-    === Топ-20 клиентских устройств ===
-
-``` r
 print(head(final_station_tibble, 20))
 ```
 
@@ -682,13 +656,6 @@ print(head(final_station_tibble, 20))
     18 BC:F1:71:D5:B3:5D Intel Corporate               (not…       -61           617
     19 BC:F1:71:D6:10:D7 Intel Corporate               (not…       -31           606
     20 34:E1:2D:3C:C8:2D Intel Corporate               6E:C…       -59           580
-
-``` r
-cat("\n=== ТОП-10 производителей по количеству устройств ===\n")
-```
-
-
-    === ТОП-10 производителей по количеству устройств ===
 
 ``` r
 manufacturer_stats <- final_station_tibble %>%
@@ -721,11 +688,7 @@ print(head(manufacturer_stats, 10))
 ``` r
 output_file <- "station_manufacturers.csv"
 write_csv(final_station_tibble, output_file)
-cat("\n Результаты сохранены в", output_file, "\n")
 ```
-
-
-     Результаты сохранены в station_manufacturers.csv 
 
 1.  Обнаружить устройства, которые НЕ рандомизируют свой MAC адрес
 
@@ -774,13 +737,6 @@ station_matrix <- station_ap_matrix %>%
 
 rownames(station_matrix) <- station_ids
 
-cat("\n=== Размерность матрицы для кластеризации ===\n")
-```
-
-
-    === Размерность матрицы для кластеризации ===
-
-``` r
 cat("Количество станций:", nrow(station_matrix), "\n")
 ```
 
@@ -795,13 +751,6 @@ cat("Количество уникальных BSSID:", ncol(station_matrix), "\
 ``` r
 station_matrix_filtered <- station_matrix[rowSums(station_matrix) > 0, ]
 
-cat("\nПосле фильтрации:\n")
-```
-
-
-    После фильтрации:
-
-``` r
 cat("Количество станций:", nrow(station_matrix_filtered), "\n")
 ```
 
@@ -854,28 +803,13 @@ if (nrow(station_matrix_filtered) >= 10) {
     Оптимальное количество кластеров: 2 
 
 ``` r
-set.seed(123)
+set.seed(420)
 final_clusters <- kmeans(station_matrix_filtered, centers = optimal_k, nstart = 25)
 
-cat("\n=== Результаты кластеризации ===\n")
+cat(table(final_clusters$cluster))
 ```
 
-
-    === Результаты кластеризации ===
-
-``` r
-cat("Размеры кластеров:\n")
-```
-
-    Размеры кластеров:
-
-``` r
-print(table(final_clusters$cluster))
-```
-
-
-      1   2 
-    185   1 
+    1 185
 
 ``` r
 clustered_stations <- tibble(
@@ -902,20 +836,20 @@ for (i in 1:optimal_k) {
 
 
     Кластер 1 :
-    # A tibble: 5 × 2
-      station_mac       cluster
-      <chr>               <int>
-    1 00:04:35:22:4F:75       1
-    2 00:E9:3A:67:93:E9       1
-    3 00:F4:8D:F7:C5:19       1
-    4 02:01:5B:41:E9:B3       1
-    5 02:69:A5:29:F1:3E       1
-
-    Кластер 2 :
     # A tibble: 1 × 2
       station_mac       cluster
       <chr>               <int>
-    1 98:F6:21:72:9E:D6       2
+    1 98:F6:21:72:9E:D6       1
+
+    Кластер 2 :
+    # A tibble: 5 × 2
+      station_mac       cluster
+      <chr>               <int>
+    1 00:04:35:22:4F:75       2
+    2 00:E9:3A:67:93:E9       2
+    3 00:F4:8D:F7:C5:19       2
+    4 02:01:5B:41:E9:B3       2
+    5 02:69:A5:29:F1:3E       2
 
 ``` r
 cluster_characteristics <- wifi_station_clustered %>%
@@ -938,24 +872,17 @@ cat("\n=== Характеристики кластеров ===\n")
     === Характеристики кластеров ===
 
 ``` r
-print(cluster_characteristics)
+cluster_characteristics
 ```
 
     # A tibble: 2 × 5
       cluster num_stations avg_power avg_packets num_unique_bssids
         <int>        <int>     <dbl>       <dbl>             <int>
-    1       1          185     -61.5        95.2                74
-    2       2            1     -59        2143                   1
+    1       1            1     -59        2143                   1
+    2       2          185     -61.5        95.2                74
 
 1.  Оценить стабильность уровня сигнала внури кластера во времени.
     Выявить наиболее стабильный кластер
-
-``` r
-cat("\n=== Проверка данных ===\n")
-```
-
-
-    === Проверка данных ===
 
 ``` r
 power_check <- wifi_station_clustered %>%
@@ -1000,20 +927,14 @@ cat("\n=== Стабильность сигнала между станциями
     === Стабильность сигнала между станциями в кластерах ===
 
 ``` r
-cat("(Меньшее SD = более однородные уровни сигнала в кластере)\n\n")
-```
-
-    (Меньшее SD = более однородные уровни сигнала в кластере)
-
-``` r
 print(signal_stability_between_stations)
 ```
 
     # A tibble: 2 × 12
       cluster num_stations num_records mean_power sd_power min_power max_power
         <int>        <int>       <int>      <dbl>    <dbl>     <dbl>     <dbl>
-    1       1          185         185      -61.5     19.7       -88        -1
-    2       2            1           1      -59       NA         -59       -59
+    1       2          185         185      -61.5     19.7       -88        -1
+    2       1            1           1      -59       NA         -59       -59
     # ℹ 5 more variables: range_power <dbl>, q25_power <dbl>, q75_power <dbl>,
     #   iqr_power <dbl>, cv_power <dbl>
 
@@ -1040,27 +961,14 @@ cluster_stability_by_avg <- station_avg_power %>%
   ) %>%
   arrange(sd_of_avg_power)
 
-cat("\n=== Стабильность средних уровней сигнала станций ===\n")
-```
-
-
-    === Стабильность средних уровней сигнала станций ===
-
-``` r
-cat("(Анализ средних power каждой станции внутри кластера)\n\n")
-```
-
-    (Анализ средних power каждой станции внутри кластера)
-
-``` r
 print(cluster_stability_by_avg)
 ```
 
     # A tibble: 2 × 7
       cluster num_stations mean_of_avg_power sd_of_avg_power min_avg_power
         <int>        <int>             <dbl>           <dbl>         <dbl>
-    1       1          185             -61.5            19.7           -88
-    2       2            1             -59              NA             -59
+    1       2          185             -61.5            19.7           -88
+    2       1            1             -59              NA             -59
     # ℹ 2 more variables: max_avg_power <dbl>, range_avg_power <dbl>
 
 ``` r
@@ -1078,7 +986,7 @@ cat("\n=== Наиболее стабильный кластер ===\n")
 cat("Кластер номер:", most_stable_cluster$cluster, "\n")
 ```
 
-    Кластер номер: 1 
+    Кластер номер: 2 
 
 ``` r
 cat("Стандартное отклонение:", round(most_stable_cluster$sd_power, 2), "dBm\n")
@@ -1099,16 +1007,10 @@ cat("Размах (range):", round(most_stable_cluster$range_power, 2), "dBm\n")
     Размах (range): 87 dBm
 
 ``` r
-cat("Коэффициент вариации:", round(most_stable_cluster$cv_power, 4), "\n")
+cat("Ковариация:", round(most_stable_cluster$cv_power, 4), "\n")
 ```
 
-    Коэффициент вариации: 0.3207 
-
-``` r
-cat("IQR:", round(most_stable_cluster$iqr_power, 2), "dBm\n")
-```
-
-    IQR: 13 dBm
+    Ковариация: 0.3207 
 
 ``` r
 cat("\n=== Детальное распределение мощности по кластерам ===\n")
@@ -1130,31 +1032,25 @@ for (i in 1:optimal_k) {
   cat("  SD power:", round(sd(cluster_data$power, na.rm = TRUE), 2), "dBm\n")
   cat("  Квартили: Q1 =", round(quantile(cluster_data$power, 0.25, na.rm = TRUE), 2),
       ", Q3 =", round(quantile(cluster_data$power, 0.75, na.rm = TRUE), 2), "\n")
-  cat("  Записей с power > -70:", sum(cluster_data$power > -70, na.rm = TRUE), "\n")
-  cat("  Записей с power < -80:", sum(cluster_data$power < -80, na.rm = TRUE), "\n")
 }
 ```
 
 
     Кластер 1 :
-      Всего записей: 185 
-      Уникальных станций: 185 
-      Среднее power: -61.49 dBm
-      Медиана power: -67 dBm
-      SD power: 19.72 dBm
-      Квартили: Q1 = -72 , Q3 = -59 
-      Записей с power > -70: 117 
-      Записей с power < -80: 21 
-
-    Кластер 2 :
       Всего записей: 1 
       Уникальных станций: 1 
       Среднее power: -59 dBm
       Медиана power: -59 dBm
       SD power: NA dBm
       Квартили: Q1 = -59 , Q3 = -59 
-      Записей с power > -70: 1 
-      Записей с power < -80: 0 
+
+    Кластер 2 :
+      Всего записей: 185 
+      Уникальных станций: 185 
+      Среднее power: -61.49 dBm
+      Медиана power: -67 dBm
+      SD power: 19.72 dBm
+      Квартили: Q1 = -72 , Q3 = -59 
 
 ``` r
 temporal_stability <- wifi_station_clustered %>%
@@ -1182,8 +1078,8 @@ print(temporal_stability)
     # A tibble: 2 × 3
       cluster avg_session_duration total_observations
         <int>                <dbl>              <int>
-    1       1                 41.5                185
-    2       2                 75.0                  1
+    1       1                 75.0                  1
+    2       2                 41.5                185
 
 ``` r
 cat("\n=== Выводы ===\n")
@@ -1202,19 +1098,19 @@ cat("1. Кластеризация разделила", nrow(station_matrix_filt
 cat("2. Наиболее стабильный сигнал в кластере №", most_stable_cluster$cluster, "\n")
 ```
 
-    2. Наиболее стабильный сигнал в кластере № 1 
+    2. Наиболее стабильный сигнал в кластере № 2 
 
 ``` r
-cat("   - SD =", round(most_stable_cluster$sd_power, 2), "dBm\n")
+cat("   - Стандартное отклонение =", round(most_stable_cluster$sd_power, 2), "dBm\n")
 ```
 
-       - SD = 19.72 dBm
+       - Стандартное отклонение = 19.72 dBm
 
 ``` r
-cat("   - Mean =", round(most_stable_cluster$mean_power, 2), "dBm\n")
+cat("   - Среднее =", round(most_stable_cluster$mean_power, 2), "dBm\n")
 ```
 
-       - Mean = -61.49 dBm
+       - Среднее = -61.49 dBm
 
 ``` r
 cat("3. Сравнение кластеров по стабильности:\n")
@@ -1230,8 +1126,8 @@ for (i in 1:nrow(signal_stability_between_stations)) {
 }
 ```
 
-       Кластер 1 : SD = 19.72 dBm, Range = 87 dBm
-       Кластер 2 : SD = NA dBm, Range = 0 dBm
+       Кластер 2 : SD = 19.72 dBm, Range = 87 dBm
+       Кластер 1 : SD = NA dBm, Range = 0 dBm
 
 ## Оценка результата
 
