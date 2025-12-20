@@ -33,103 +33,146 @@ format:
 1. Импортируйте данные в R. Это можно выполнить с помощью jsonlite::stream_in(file()) . Датасет находится по адресу https://storage.yandexcloud.net/iamcth-data/dataset.tar.gz.
  
 ```{r}
+
 library(jsonlite)
 library(tidyverse)
 library(xml2)
 library(rvest)
 
-
 dataset <- "https://storage.yandexcloud.net/iamcth-data/dataset.tar.gz"
 archive <- "dataset.tar.gz"
+
 if (!file.exists(archive)) {
+  cat("Скачивание архива...\n")
   download.file(url = dataset, destfile = archive, mode = "wb")
 }
+
 archive_contents <- untar(tarfile = archive, list = TRUE)
 json_file <- archive_contents[grep("\\.json$", archive_contents)]
 temp_json_dir <- tempdir()
 untar(tarfile = archive, files = json_file, exdir = temp_json_dir)
 json_file_path <- file.path(temp_json_dir, json_file)
-json_file_connection <- file(json_file_path, open = "r")
-raw_data <- stream_in(json_file_connection)
 
+json_con <- file(json_file_path, "r")
+raw_data <- stream_in(json_con, pagesize = 5000, verbose = FALSE, flatten = TRUE)
+close(json_con)
 
-close(json_file_connection)
 
 
 ```
 
-2. Привести датасеты в вид “аккуратных данных”, преобразовать типы столбцов в соответствии с типом данных
+2-3. Привести датасеты в вид “аккуратных данных”, преобразовать типы столбцов в соответствии с типом данных; ривести датасеты в вид “аккуратных данных”, преобразовать типы столбцов в
+соответствии с типом данных
+Просмотрите общую структуру данных с помощью функции glimpse()
+Раскройте датафрейм избавившись от вложенных датафреймов. Для
+обнаружения таких можно использовать функцию dplyr::glimpse() , а для
+раскрытия вложенности – tidyr::unnest() . Обратите внимание, что при
+раскрытии теряются внешние названия колонок – это можно предотвратить
+если использовать параметр tidyr::unnest(..., names_sep = )
 
 ```{r}
-is_datetime_char <- function(x) {
-  if (is.character(x) | is.factor(x)) {
-    x_char <- as.character(x)
-    non_na_sample <- x_char[!is.na(x_char)]
-    if (length(non_na_sample) > 0) {
-      try_result <- try(as.POSIXct(non_na_sample[1]), silent = TRUE)
-      return(inherits(try_result, "POSIXct"))
+
+
+unnested_data <- raw_data
+list_cols <- names(unnested_data)[sapply(unnested_data, is.list)]
+
+iteration <- 0
+while(length(list_cols) > 0 && iteration < 100) {
+  iteration <- iteration + 1
+  cat("  Итерация", iteration, ": раскрываем", length(list_cols), "колонок-списков\n")
+  
+  for (col in list_cols) {
+    tryCatch({
+      sample_val <- unnested_data[[col]][[which(!sapply(unnested_data[[col]], is.null))[1]]]
+      
+      if (is.list(sample_val) && !is.null(names(sample_val))) {
+        unnested_data <- unnested_data %>% 
+          unnest_wider(all_of(col), names_sep = "_", simplify = TRUE, strict = FALSE)
+      } else {
+        unnested_data[[col]] <- sapply(unnested_data[[col]], function(x) {
+          if (is.null(x) || length(x) == 0) return(NA_character_)
+          if (length(x) == 1) return(as.character(x))
+          paste(x, collapse = ", ")
+        })
+      }
+    }, error = function(e) {
+      cat("    Ошибка в колонке", col, "- пропускаем\n")
+    })
+  }
+  
+  list_cols <- names(unnested_data)[sapply(unnested_data, is.list)]
+}
+
+cat("  Финальных колонок после раскрытия:", ncol(unnested_data), "\n")
+
+
+
+
+detect_and_convert <- function(col) {
+  if (is.numeric(col) || is.logical(col) || inherits(col, "POSIXct")) {
+    return(col)
+  }
+  
+  if (!is.character(col)) return(col)
+  
+  non_na <- na.omit(col)
+  if (length(non_na) == 0) return(col)
+  
+  sample_size <- min(1000, length(non_na))
+  sample_vals <- non_na[1:sample_size]
+  
+  if (all(tolower(sample_vals) %in% c("true", "false", "1", "0"))) {
+    return(case_when(
+      tolower(col) %in% c("true", "1") ~ TRUE,
+      tolower(col) %in% c("false", "0") ~ FALSE,
+      TRUE ~ NA
+    ))
+  }
+  
+  if (all(grepl("^-?[0-9]+$", sample_vals))) {
+    return(as.integer(col))
+  }
+  
+  if (all(grepl("^-?[0-9]+(\\.[0-9]+)?$", sample_vals))) {
+    return(as.numeric(col))
+  }
+  
+  if (any(grepl("^\\d{4}-\\d{2}-\\d{2}", sample_vals[1:min(10, length(sample_vals))]))) {
+    parsed <- lubridate::parse_date_time(col, 
+                                          orders = c("ymd HMS", "ymd HM", "dmy HMS"),
+                                          quiet = TRUE)
+    if (sum(!is.na(parsed)) / length(col) > 0.5) {
+      return(parsed)
     }
   }
-  return(FALSE)
+  
+  return(col)
 }
-potential_datetime_cols <- sapply(raw_data, is_datetime_char)
-datetime_col_names <- names(raw_data)[potential_datetime_cols]
-if (length(datetime_col_names) > 0) {
-  for (col_name in datetime_col_names) {
-    raw_data[[col_name]] <- tryCatch(
-      as.POSIXct(raw_data[[col_name]]),
-      error = function(e) {
-        return(raw_data[[col_name]])
-      }
-    )
-  }
-} 
-is_numeric_char <- function(x) {
-  if (is.character(x) | is.factor(x)) {
-    x_char <- as.character(x)
-    suppressWarnings(all(!is.na(as.numeric(x_char[!is.na(x_char)]))))
-  } else {
-    FALSE
-  }
-}
-potential_numeric_cols <- sapply(raw_data, is_numeric_char)
-numeric_col_names <- names(raw_data)[potential_numeric_cols]
-if (length(numeric_col_names) > 0) {
-  raw_data <- raw_data %>%
-    mutate(
-      across(all_of(numeric_col_names), ~as.numeric(as.character(.x)))
-    )
-}
-is_logical_char <- function(x) {
-  if (is.character(x) | is.factor(x)) {
-    x_char <- tolower(as.character(x))
-    unique_vals <- unique(x_char[!is.na(x_char)])
-    logical_strings <- c("true", "false", "1", "0")
-    all_vals_logical <- length(unique_vals) > 0 && all(unique_vals %in% logical_strings)
-    has_true_false <- any(unique_vals == "true") && any(unique_vals == "false")
-    has_one_zero <- any(unique_vals == "1") && any(unique_vals == "0")
-    return(all_vals_logical && (has_true_false || has_one_zero))
-  } else {
-    FALSE
-  }
-}
-potential_logical_cols <- sapply(raw_data, is_logical_char)
-logical_col_names <- names(raw_data)[potential_logical_cols]
-if (length(logical_col_names) > 0) {
-  for (col_name in logical_col_names) {
-    char_vec <- as.character(raw_data[[col_name]])
-    logical_vec <- ifelse(tolower(char_vec) %in% c("true", "1"), TRUE,
-                          ifelse(tolower(char_vec) %in% c("false", "0"), FALSE, NA))
-    raw_data[[col_name]] <- logical_vec
+
+char_cols <- names(unnested_data)[sapply(unnested_data, is.character)]
+cat("  Найдено", length(char_cols), "текстовых колонок\n")
+
+converted_types <- list()
+for (col_name in char_cols) {
+  original_class <- class(unnested_data[[col_name]])[1]
+  unnested_data[[col_name]] <- detect_and_convert(unnested_data[[col_name]])
+  new_class <- class(unnested_data[[col_name]])[1]
+  
+  if (original_class != new_class) {
+    converted_types[[col_name]] <- paste0(original_class, " → ", new_class)
   }
 }
 
-```
+if (length(converted_types) > 0) {
+  cat("  Конвертировано колонок:", length(converted_types), "\n")
+  cat("  Примеры преобразований:\n")
+  for (i in 1:min(5, length(converted_types))) {
+    cat("    •", names(converted_types)[i], ":", converted_types[[i]], "\n")
+  }
+} else {
+  cat("  Типы уже корректны, преобразования не требуются\n")
+}
 
-
-3.  Раскройте датафрейм избавившись от вложенных датафреймов. Для обнаружения таких можно использовать функцию dplyr::glimpse() , а для раскрытия вложенности – tidyr::unnest() . Обратите внимание, что при раскрытии теряются внешние названия колонок – это можно предотвратить если использовать параметр tidyr::unnest(..., names_sep = ) 
-
-```{r}
 
 
 list_cols_logical <- sapply(raw_data, is.list)
@@ -159,6 +202,7 @@ if (length(remaining_list_cols) > 0) {
 }
 
 
+glimpse(unnested_data)
 
 ```
 
@@ -168,44 +212,47 @@ if (length(remaining_list_cols) > 0) {
 
 ```{r}
 
-is_constant_col <- function(col) {
-  unique_vals <- unique(col)
-  unique_vals_no_na <- unique_vals[!is.na(unique_vals)]
-  return(length(unique_vals_no_na) <= 1)
-}
-constant_cols_logical <- sapply(unnested_data, is_constant_col)
-constant_cols_names <- names(unnested_data)[constant_cols_logical]
-minimized_data <- unnested_data %>%
-  select(-all_of(constant_cols_names))
-glimpse(minimized_data)
+non_constant_cols <- names(unnested_data)[sapply(unnested_data, function(col) {
+  n_distinct(col, na.rm = TRUE) > 1
+})]
+
+minimized_data <- unnested_data %>% select(all_of(non_constant_cols))
+
+removed_count <- ncol(unnested_data) - ncol(minimized_data)
+
 ```
 
 
 5. Какое количество хостов представлено в данном датасете?
 
 ```{r}
+host_col_candidates <- grep("hostname|host", names(minimized_data), 
+                            ignore.case = TRUE, value = TRUE)
 
-host_col_name <- "winlog_event_data_SourceHostname"
-num_unique_hosts <- n_distinct(minimized_data[[host_col_name]])
-num_unique_hosts
+if (length(host_col_candidates) > 0) {
+  host_col_name <- host_col_candidates[1]
+  num_unique_hosts <- n_distinct(minimized_data[[host_col_name]], na.rm = TRUE)
+  cat("\nУникальных хостов (", host_col_name, "): ", num_unique_hosts, "\n", sep = "")
+}
 
 ```
 
 6. Подготовьте датафрейм с расшифровкой Windows Event_ID, приведите типы данных к типу их значений.
 ```{r}
+cat("\nЗагрузка справочника критичности событий Windows...\n")
 webpage_url <- "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/appendix-l--events-to-monitor"
 webpage <- read_html(webpage_url)
 event_df_raw <- html_table(webpage)[[1]]
+
 event_df <- event_df_raw %>%
-  mutate(
-    `Current Windows Event ID` = as.numeric(`Current Windows Event ID`),
-    `Legacy Windows Event ID` = as.numeric(`Legacy Windows Event ID`),
-    `Potential criticality` = as.character(`Potential Criticality`),
-    `Event Summary` = as.character(`Event Summary`)
-  )
+  transmute(
+    event_id = as.numeric(`Current Windows Event ID`),
+    criticality = `Potential Criticality`
+  ) %>%
+  filter(!is.na(event_id))
 
+cat("Загружено событий из справочника:", nrow(event_df), "\n")
 
-glimpse(event_df)
 
 ```
 
@@ -214,30 +261,33 @@ glimpse(event_df)
 
 ```{r}
 
-bad_event<- minimized_data %>%
-  select(event_code) %>%
-  left_join(
-    event_df %>% select(`Current Windows Event ID`, `Potential Criticality`),
-    by = join_by(event_code == `Current Windows Event ID`)
-  )
-has_high <- ifelse(
-  is.na(bad_event$`Potential Criticality`),
-  FALSE,
-  grepl("High", bad_event$`Potential Criticality`, ignore.case = TRUE)
-)
-has_medium <- ifelse(
-  is.na(bad_event$`Potential Criticality`),
-  FALSE,
-  grepl("Мedium", bad_event$`Potential Criticality`, ignore.case = TRUE)
-)
-high_events_count_calc <- sum(has_high)
-cat("События высокой значимости: ",high_events_count_calc, "\n")
+event_col_candidates <- grep("event.*code|event.*id|^event_id$", names(minimized_data), 
+                             ignore.case = TRUE, value = TRUE)
 
-
-medium_events_count_calc <- sum(has_medium)
-cat("Событий средней значимости: ",medium_events_count_calc, "\n")
-
-
-
-
+if (length(event_col_candidates) > 0) {
+  event_col_name <- event_col_candidates[1]
+  cat("Используем колонку с кодами событий:", event_col_name, "\n")
+  
+  # Убеждаемся что numeric
+  if (!is.numeric(minimized_data[[event_col_name]])) {
+    minimized_data[[event_col_name]] <- as.numeric(minimized_data[[event_col_name]])
+  }
+  
+  # Подсчёт с агрегацией
+  event_summary <- minimized_data %>%
+    count(.data[[event_col_name]], name = "count") %>%
+    rename(event_code = 1) %>%
+    left_join(event_df, by = c("event_code" = "event_id"))
+  
+  criticality_counts <- event_summary %>%
+    summarise(
+      high = sum(count[grepl("High", criticality, ignore.case = TRUE)], na.rm = TRUE),
+      medium = sum(count[grepl("Medium", criticality, ignore.case = TRUE)], na.rm = TRUE),
+      total_events = sum(count)
+    )
+  
+  cat("События высокой значимости (High):   ", criticality_counts$high, "\n")
+  cat("События средней значимости (Medium): ", criticality_counts$medium, "\n")
+  cat("Всего событий в датасете:            ", criticality_counts$total_events, "\n")
+}
 ```

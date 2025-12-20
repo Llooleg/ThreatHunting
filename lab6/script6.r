@@ -3,166 +3,148 @@ library(tidyverse)
 library(xml2)
 library(rvest)
 
-
 dataset <- "https://storage.yandexcloud.net/iamcth-data/dataset.tar.gz"
 archive <- "dataset.tar.gz"
+
 if (!file.exists(archive)) {
+  cat("Скачивание архива...\n")
   download.file(url = dataset, destfile = archive, mode = "wb")
 }
+
 archive_contents <- untar(tarfile = archive, list = TRUE)
 json_file <- archive_contents[grep("\\.json$", archive_contents)]
 temp_json_dir <- tempdir()
 untar(tarfile = archive, files = json_file, exdir = temp_json_dir)
 json_file_path <- file.path(temp_json_dir, json_file)
-json_file_connection <- file(json_file_path, open = "r")
-raw_data <- stream_in(json_file_connection)
 
+json_con <- file(json_file_path, "r")
+raw_data <- stream_in(json_con, pagesize = 10000, verbose = FALSE, flatten = TRUE)
+close(json_con)
 
-close(json_file_connection)
+cat("Загружено:", nrow(raw_data), "записей,", ncol(raw_data), "колонок\n")
 
+cat("Удаление константных колонок...\n")
+variance_check <- sapply(raw_data, function(col) {
+  if (is.list(col)) return(TRUE)  # Оставляем списки пока
+  n_distinct(col, na.rm = TRUE) > 1
+})
 
-is_datetime_char <- function(x) {
-  if (is.character(x) | is.factor(x)) {
-    x_char <- as.character(x)
-    non_na_sample <- x_char[!is.na(x_char)]
-    if (length(non_na_sample) > 0) {
-      try_result <- try(as.POSIXct(non_na_sample[1]), silent = TRUE)
-      return(inherits(try_result, "POSIXct"))
-    }
-  }
-  return(FALSE)
-}
-potential_datetime_cols <- sapply(raw_data, is_datetime_char)
-datetime_col_names <- names(raw_data)[potential_datetime_cols]
-if (length(datetime_col_names) > 0) {
-  for (col_name in datetime_col_names) {
-    raw_data[[col_name]] <- tryCatch(
-      as.POSIXct(raw_data[[col_name]]),
-      error = function(e) {
-        return(raw_data[[col_name]])
+minimized_data <- raw_data[, variance_check]
+cat("Осталось колонок:", ncol(minimized_data), "\n")
+
+list_cols <- names(minimized_data)[sapply(minimized_data, is.list)]
+cat("Колонок-списков для разворачивания:", length(list_cols), "\n")
+
+if (length(list_cols) > 0) {
+  for (col in list_cols) {
+    cat("  Разворачиваем:", col, "\n")
+    tryCatch({
+      sample_val <- minimized_data[[col]][[which(!sapply(minimized_data[[col]], is.null))[1]]]
+      
+      if (is.list(sample_val) && !is.null(names(sample_val))) {
+        minimized_data <- minimized_data %>% 
+          unnest_wider(all_of(col), names_sep = "_", simplify = TRUE, strict = FALSE)
+      } else {
+        minimized_data[[col]] <- sapply(minimized_data[[col]], function(x) {
+          if (is.null(x) || length(x) == 0) return(NA_character_)
+          if (length(x) == 1) return(as.character(x))
+          paste(x, collapse = ", ")
+        })
       }
-    )
-  }
-} 
-is_numeric_char <- function(x) {
-  if (is.character(x) | is.factor(x)) {
-    x_char <- as.character(x)
-    suppressWarnings(all(!is.na(as.numeric(x_char[!is.na(x_char)]))))
-  } else {
-    FALSE
-  }
-}
-potential_numeric_cols <- sapply(raw_data, is_numeric_char)
-numeric_col_names <- names(raw_data)[potential_numeric_cols]
-if (length(numeric_col_names) > 0) {
-  raw_data <- raw_data %>%
-    mutate(
-      across(all_of(numeric_col_names), ~as.numeric(as.character(.x)))
-    )
-}
-is_logical_char <- function(x) {
-  if (is.character(x) | is.factor(x)) {
-    x_char <- tolower(as.character(x))
-    unique_vals <- unique(x_char[!is.na(x_char)])
-    logical_strings <- c("true", "false", "1", "0")
-    all_vals_logical <- length(unique_vals) > 0 && all(unique_vals %in% logical_strings)
-    has_true_false <- any(unique_vals == "true") && any(unique_vals == "false")
-    has_one_zero <- any(unique_vals == "1") && any(unique_vals == "0")
-    return(all_vals_logical && (has_true_false || has_one_zero))
-  } else {
-    FALSE
-  }
-}
-potential_logical_cols <- sapply(raw_data, is_logical_char)
-logical_col_names <- names(raw_data)[potential_logical_cols]
-if (length(logical_col_names) > 0) {
-  for (col_name in logical_col_names) {
-    char_vec <- as.character(raw_data[[col_name]])
-    logical_vec <- ifelse(tolower(char_vec) %in% c("true", "1"), TRUE,
-                          ifelse(tolower(char_vec) %in% c("false", "0"), FALSE, NA))
-    raw_data[[col_name]] <- logical_vec
+    }, error = function(e) {
+      cat("    Ошибка, пропускаем\n")
+    })
   }
 }
 
-glimpse(raw_data)
+cat("Финальных колонок:", ncol(minimized_data), "\n")
 
-list_cols_logical <- sapply(raw_data, is.list)
-list_col_names <- names(raw_data)[list_cols_logical]
-unnested_data <- raw_data %>%
-    unnest(
-      cols = all_of(list_col_names),
-      names_sep = "_",
-      keep_empty = TRUE
-      )
-list_cols_after_logical <- sapply(unnested_data, is.list)
-remaining_list_cols <- names(unnested_data)[list_cols_after_logical]
-if (length(remaining_list_cols) > 0) {
-  iteration_count <- 0
-  max_iterations <- 10
-  while (length(remaining_list_cols) > 0 & iteration_count < max_iterations) {
-    unnested_data <- unnested_data %>%
-      unnest(
-        cols = all_of(remaining_list_cols),
-        names_sep = "_",
-        keep_empty = TRUE
-      )
-    list_cols_after_logical <- sapply(unnested_data, is.list)
-    remaining_list_cols <- names(unnested_data)[list_cols_after_logical]
-    iteration_count <- iteration_count + 1
-  }
+# Подсчёт хостов
+host_col_candidates <- grep("hostname|host", names(minimized_data), 
+                            ignore.case = TRUE, value = TRUE)
+cat("\nНайденные колонки с хостами:", paste(host_col_candidates, collapse = ", "), "\n")
+
+if (length(host_col_candidates) > 0) {
+  host_col_name <- host_col_candidates[1]
+  num_unique_hosts <- n_distinct(minimized_data[[host_col_name]], na.rm = TRUE)
+  cat("Уникальных хостов:", num_unique_hosts, "\n")
 }
 
-
-is_constant_col <- function(col) {
-  unique_vals <- unique(col)
-  unique_vals_no_na <- unique_vals[!is.na(unique_vals)]
-  return(length(unique_vals_no_na) <= 1)
-}
-constant_cols_logical <- sapply(unnested_data, is_constant_col)
-constant_cols_names <- names(unnested_data)[constant_cols_logical]
-minimized_data <- unnested_data %>%
-  select(-all_of(constant_cols_names))
-glimpse(minimized_data)
-
-host_col_name <- "winlog_event_data_SourceHostname"
-num_unique_hosts <- n_distinct(minimized_data[[host_col_name]])
-num_unique_hosts
-
+# Загрузка справочника событий Microsoft
+cat("\nЗагрузка справочника критичности событий...\n")
 webpage_url <- "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/appendix-l--events-to-monitor"
 webpage <- read_html(webpage_url)
 event_df_raw <- html_table(webpage)[[1]]
+
 event_df <- event_df_raw %>%
-  mutate(
-    `Current Windows Event ID` = as.numeric(`Current Windows Event ID`),
-    `Legacy Windows Event ID` = as.numeric(`Legacy Windows Event ID`),
-    `Potential criticality` = as.character(`Potential Criticality`),
-    `Event Summary` = as.character(`Event Summary`)
-  )
+  transmute(
+    event_id = as.numeric(`Current Windows Event ID`),
+    criticality = `Potential Criticality`
+  ) %>%
+  filter(!is.na(event_id))
 
+cat("Загружено событий:", nrow(event_df), "\n")
 
-glimpse(event_df)
+# Поиск колонки с event_code
+event_col_candidates <- grep("event.*code|event.*id", names(minimized_data), 
+                             ignore.case = TRUE, value = TRUE)
+cat("\nНайденные колонки с кодами событий:", paste(event_col_candidates, collapse = ", "), "\n")
 
-bad_event<- minimized_data %>%
-  select(event_code) %>%
-  left_join(
-    event_df %>% select(`Current Windows Event ID`, `Potential Criticality`),
-    by = join_by(event_code == `Current Windows Event ID`)
-  )
-has_high <- ifelse(
-  is.na(bad_event$`Potential Criticality`),
-  FALSE,
-  grepl("High", bad_event$`Potential Criticality`, ignore.case = TRUE)
-)
-has_medium <- ifelse(
-  is.na(bad_event$`Potential Criticality`),
-  FALSE,
-  grepl("Мedium", bad_event$`Potential Criticality`, ignore.case = TRUE)
-)
-high_events_count_calc <- sum(has_high)
-cat("События высокой значимости: ",high_events_count_calc, "\n")
+if (length(event_col_candidates) > 0) {
+  event_col_name <- event_col_candidates[1]
+  cat("Используем колонку:", event_col_name, "\n")
+  
+  # Убеждаемся что это numeric
+  if (!is.numeric(minimized_data[[event_col_name]])) {
+    minimized_data[[event_col_name]] <- as.numeric(minimized_data[[event_col_name]])
+  }
+  
+  # ОПТИМИЗАЦИЯ: сначала агрегируем, потом джойним
+  cat("Подсчёт критичности событий...\n")
+  
+  event_summary <- minimized_data %>%
+    count(.data[[event_col_name]], name = "count") %>%
+    rename(event_code = 1) %>%
+    left_join(event_df, by = c("event_code" = "event_id"))
+  
+  # Подсчёт по критичности
+  criticality_counts <- event_summary %>%
+    summarise(
+      high = sum(count[grepl("High", criticality, ignore.case = TRUE)], na.rm = TRUE),
+      medium = sum(count[grepl("Medium", criticality, ignore.case = TRUE)], na.rm = TRUE),
+      total_events = sum(count),
+      .groups = "drop"
+    )
+  
+  cat("\n" , rep("=", 50), "\n", sep = "")
+  cat("РЕЗУЛЬТАТЫ АНАЛИЗА\n")
+  cat(rep("=", 50), "\n", sep = "")
+  cat("События высокой значимости:  ", criticality_counts$high, "\n")
+  cat("События средней значимости:  ", criticality_counts$medium, "\n")
+  cat("Всего событий:               ", criticality_counts$total_events, "\n")
+  
+  if (criticality_counts$high == 0 && criticality_counts$medium == 0) {
+    cat("\n⚠️  ВНИМАНИЕ:\n")
+    cat("Ни одного события из справочника Microsoft не найдено.\n")
+    cat("Это нормально — справочник покрывает только AD/Kerberos/IPsec.\n")
+    cat("Ваш датасет содержит системные/PowerShell/WMI события.\n")
+  }
+  
+  cat(rep("=", 50), "\n", sep = "")
+  
+  # Топ-10 самых частых событий
+  cat("\nТоп-10 самых частых событий:\n")
+  event_summary %>%
+    arrange(desc(count)) %>%
+    head(10) %>%
+    mutate(criticality = ifelse(is.na(criticality), "Unknown", criticality)) %>%
+    print()
+  
+} else {
+  cat("\nОШИБКА: Не найдена колонка с кодами событий!\n")
+  cat("Первые 20 колонок датасета:\n")
+  print(head(names(minimized_data), 20))
+}
 
-
-medium_events_count_calc <- sum(has_medium)
-cat("Событий средней значимости: ",medium_events_count_calc, "\n")
-
+cat("\nГотово!\n")
 
